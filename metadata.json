@@ -1,0 +1,8 @@
+{
+  "name": "BrightFlow",
+  "description": "Subscription management, without the chaos. Modern SaaS billing platform with automated recurring billing, quotation workflows, discount engine, invoices, payments, and multi-role access control.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

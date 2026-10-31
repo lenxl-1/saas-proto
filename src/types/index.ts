@@ -223,12 +223,36 @@ export interface EmailMessage {
   toEmail: string;
   toName: string;
   subject: string;
-  type: 'password_reset' | 'invoice_sent' | 'payment_reminder' | 'payment_receipt';
+  type:
+    | 'password_reset'
+    | 'invoice_sent'
+    | 'payment_reminder'
+    | 'payment_receipt'
+    | 'quotation_requested'
+    | 'subscription_request'
+    | 'subscription_request_resolved';
   content: string;
   resetToken?: string;
   expiresAt?: string;
   read: boolean;
   sentAt: string;
+}
+
+export type SubscriptionRequestType = 'pause' | 'cancel' | 'renew';
+export type SubscriptionRequestStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface SubscriptionRequest {
+  id: string;
+  subscriptionId: string;
+  subscriptionNumber: string;
+  customerId: string;
+  customerName: string;
+  type: SubscriptionRequestType;
+  reason?: string;
+  status: SubscriptionRequestStatus;
+  adminNote?: string;
+  createdAt: string;
+  resolvedAt?: string;
 }
 
 export interface BillingRunLog {
@@ -250,4 +274,6 @@ export interface SystemSettings {
   companyPhone: string;
   companyEmail: string;
   companyWebsite: string;
+  enableAiAssistant?: boolean;
 }
+

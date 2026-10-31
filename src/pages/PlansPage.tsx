@@ -19,11 +19,17 @@ import { plansRepo, settingsRepo, subscriptionsRepo } from '../lib/db';
 import { formatDate, formatINR } from '../lib/formatters';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/ui/Button';
+import { CustomerPlanExplorer } from '../components/plans/CustomerPlanExplorer';
 import { useToast } from '../context/ToastContext';
 
 export const PlansPage: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
+
+  if (user?.role === 'customer') {
+    return <CustomerPlanExplorer currentUser={user} />;
+  }
+
   const settings = settingsRepo.get();
   const effectiveToday = settings.simulatedDate || new Date().toISOString().split('T')[0];
 

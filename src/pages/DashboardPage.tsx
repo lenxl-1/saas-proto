@@ -39,6 +39,7 @@ import { RevenueAnalytics } from '../components/dashboard/RevenueAnalytics';
 import { SubscriptionHealth } from '../components/dashboard/SubscriptionHealth';
 import { RevenuePeriod } from '../components/dashboard/RevenuePeriodSelector';
 import { SecondaryAnalytics } from '../components/dashboard/SecondaryAnalytics';
+import { AiSummaryCard } from '../components/ai/AiSummaryCard';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -248,6 +249,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </div>
         )}
       </div>
+
+      {/* Daily AI Executive Summary Card */}
+      {!isCustomerRole && (
+        <AiSummaryCard
+          onNavigateToInsights={() => onNavigate('ai-insights')}
+          onNavigateToOverdue={() => onNavigate('invoices')}
+        />
+      )}
 
       {/* 2. Contextual Alert Bar (Section 6) */}
       {!isCustomerRole && metrics.overdueCount > 0 && (

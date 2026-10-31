@@ -26,6 +26,8 @@ import { DemoGuidePage } from './pages/DemoGuidePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { AiInsightsPage } from './pages/AiInsightsPage';
+import { FloatingAiChat } from './components/ai/FloatingAiChat';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -159,6 +161,8 @@ function MainApp() {
         );
       case 'performance':
         return <PerformancePage />;
+      case 'ai-insights':
+        return <AiInsightsPage />;
       case 'demo-guide':
         return <DemoGuidePage onNavigate={setCurrentPage} />;
       default:
@@ -196,6 +200,9 @@ function MainApp() {
         onClose={() => setIsSearchOpen(false)}
         onNavigate={(page) => setCurrentPage(page)}
       />
+
+      {/* Floating AI Revenue Assistant */}
+      <FloatingAiChat />
     </div>
   );
 }

@@ -53,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title: 'PORTAL',
           items: [
             { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+            { id: 'ai-insights', label: 'Spend & Forecast', icon: Sparkles },
             { id: 'subscriptions', label: 'My Subscriptions', icon: Repeat },
             { id: 'invoices', label: 'Invoices & Receipts', icon: FileText },
             { id: 'payments', label: 'Payments History', icon: CreditCard },
@@ -98,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {
         title: 'ANALYTICS',
         items: [
+          { id: 'ai-insights', label: 'AI Insights & Forecast', icon: Sparkles, badge: 'AI' },
           { id: 'reports', label: 'Revenue & Reports', icon: TrendingUp },
         ],
       },

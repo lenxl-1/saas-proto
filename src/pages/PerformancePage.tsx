@@ -304,6 +304,49 @@ export const PerformancePage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* AI Assistant & System Settings Card */}
+      <div className="bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#262626] rounded-2xl p-6 shadow-2xs space-y-4">
+        <div className="flex items-center gap-2.5 pb-3 border-b border-[#E5E5E5] dark:border-[#262626]">
+          <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <div>
+            <h3 className="text-sm font-semibold text-[#171717] dark:text-[#F5F5F5]">
+              System & AI Assistant Settings
+            </h3>
+            <p className="text-xs text-[#737373] dark:text-[#A3A3A3]">
+              Configure Gemini intelligence and workspace automation policies.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-850/50 border border-[#E5E5E5] dark:border-[#262626]">
+          <div>
+            <span className="font-semibold text-xs text-[#171717] dark:text-[#F5F5F5] block">
+              Enable AI Revenue Assistant
+            </span>
+            <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 max-w-md">
+              Activates the floating AI chat assistant on all pages for role-scoped forecasting, aging queries, and automated billing actions.
+            </p>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={settingsRepo.get().enableAiAssistant !== false}
+              onChange={(e) => {
+                settingsRepo.update({ enableAiAssistant: e.target.checked });
+                showToast(
+                  'info',
+                  'Settings Saved',
+                  `AI assistant ${e.target.checked ? 'enabled' : 'disabled'}.`
+                );
+              }}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-indigo-600"></div>
+          </label>
+        </div>
+      </div>
     </div>
   );
 };

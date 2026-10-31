@@ -49,10 +49,14 @@ import { ConfirmModal } from '../components/common/ConfirmModal';
 import { Pagination } from '../components/common/Pagination';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { QuotationViewModal } from '../components/quotations/QuotationViewModal';
+import { CustomerActionModal } from '../components/subscriptions/CustomerActionModal';
+import { SubscriptionRequestsTab } from '../components/subscriptions/SubscriptionRequestsTab';
 import { Button } from '../components/ui/Button';
 import { LifecycleStepper } from '../components/ui/LifecycleStepper';
 import { MetricCard } from '../components/ui/MetricCard';
 import { useToast } from '../context/ToastContext';
+import { SubscriptionRequestType } from '../types';
+import { requestsRepo } from '../lib/db';
 
 export const SubscriptionsPage: React.FC = () => {
   const { user } = useAuth();
@@ -61,6 +65,17 @@ export const SubscriptionsPage: React.FC = () => {
   const effectiveToday = settings.simulatedDate || new Date().toISOString().split('T')[0];
 
   const canManage = user?.role === 'admin' || user?.role === 'staff';
+  const isCustomer = user?.role === 'customer';
+
+  // Subscriptions vs Requests tab (for staff/admin)
+  const [activeTab, setActiveTab] = useState<'subscriptions' | 'requests'>('subscriptions');
+
+  // Customer Request Modal State
+  const [customerModal, setCustomerModal] = useState<{
+    isOpen: boolean;
+    sub: Subscription | null;
+    type: SubscriptionRequestType;
+  }>({ isOpen: false, sub: null, type: 'pause' });
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState('');
@@ -92,6 +107,9 @@ export const SubscriptionsPage: React.FC = () => {
   const products = useMemo(() => productsRepo.getAll().filter((p) => p.active), []);
   const discounts = useMemo(() => discountsRepo.getAll().filter((d) => d.active), []);
   const auditLogs = useMemo(() => auditLogsRepo.getAll(user), [user]);
+  const pendingRequestsCount = useMemo(() => {
+    return requestsRepo.getAll(user).filter((r) => r.status === 'Pending').length;
+  }, [user]);
 
   // Filtered dataset
   const filteredSubscriptions = useMemo(() => {
@@ -357,7 +375,9 @@ export const SubscriptionsPage: React.FC = () => {
             Subscriptions
           </h1>
           <p className="text-xs text-[#737373] dark:text-[#A3A3A3] mt-1">
-            Automated recurring agreements and lifecycle management.
+            {isCustomer
+              ? 'Your active service agreements, quotations, and recurring billing plans.'
+              : 'Automated recurring agreements and lifecycle management.'}
           </p>
         </div>
 
@@ -373,7 +393,42 @@ export const SubscriptionsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Filters Bar */}
+      {/* Staff / Admin Tab Selector */}
+      {canManage && (
+        <div className="flex items-center gap-1 p-1 bg-neutral-100 dark:bg-neutral-850 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === 'subscriptions'
+                ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#F5F5F5] shadow-2xs font-semibold'
+                : 'text-[#737373] hover:text-[#171717] dark:hover:text-[#F5F5F5]'
+            }`}
+          >
+            Subscriptions ({subscriptions.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              activeTab === 'requests'
+                ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#F5F5F5] shadow-2xs font-semibold'
+                : 'text-[#737373] hover:text-[#171717] dark:hover:text-[#F5F5F5]'
+            }`}
+          >
+            <span>Customer Requests</span>
+            {pendingRequestsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                {pendingRequestsCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'requests' && canManage ? (
+        <SubscriptionRequestsTab currentUser={user!} />
+      ) : (
+        <>
+          {/* Filters Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-[#111111] border border-[#E5E5E5] dark:border-[#262626] rounded-xl">
         <div className="relative w-full sm:max-w-xs">
           <Search className="w-4 h-4 text-[#A3A3A3] absolute left-3 top-1/2 -translate-y-1/2" />
@@ -543,6 +598,38 @@ export const SubscriptionsPage: React.FC = () => {
                               {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
                             </button>
                           )}
+
+                          {/* Customer Actions on Active */}
+                          {sub.status === 'Active' && isCustomer && (
+                            <div className="flex items-center gap-1">
+                              {plan?.pausable && (
+                                <button
+                                  onClick={() =>
+                                    setCustomerModal({ isOpen: true, sub, type: 'pause' })
+                                  }
+                                  className="px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 rounded border border-amber-200/50 hover:bg-amber-100"
+                                >
+                                  Pause
+                                </button>
+                              )}
+                              <button
+                                onClick={() =>
+                                  setCustomerModal({ isOpen: true, sub, type: 'renew' })
+                                }
+                                className="px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 rounded border border-indigo-200/50 hover:bg-indigo-100"
+                              >
+                                Renew
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setCustomerModal({ isOpen: true, sub, type: 'cancel' })
+                                }
+                                className="px-2 py-0.5 text-[11px] font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded border border-red-200/50 hover:bg-red-100"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -561,6 +648,8 @@ export const SubscriptionsPage: React.FC = () => {
           onPageSizeChange={setPageSize}
         />
       </div>
+        </>
+      )}
 
       {/* 20 & 21. Subscription Inspection Drawer / Modal */}
       {selectedSubForInspection && (
@@ -783,6 +872,60 @@ export const SubscriptionsPage: React.FC = () => {
                     </Button>
                   </>
                 )}
+
+                {/* Customer inspection actions */}
+                {selectedSubForInspection.status === 'Quotation' && isCustomer && (
+                  <Button
+                    variant="primary"
+                    size="xs"
+                    onClick={() => handleTransitionStatus(selectedSubForInspection, 'Confirmed')}
+                  >
+                    Confirm Quotation
+                  </Button>
+                )}
+                {selectedSubForInspection.status === 'Active' && isCustomer && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() =>
+                        setCustomerModal({
+                          isOpen: true,
+                          sub: selectedSubForInspection,
+                          type: 'pause',
+                        })
+                      }
+                    >
+                      Request Pause
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() =>
+                        setCustomerModal({
+                          isOpen: true,
+                          sub: selectedSubForInspection,
+                          type: 'renew',
+                        })
+                      }
+                    >
+                      Renew
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="xs"
+                      onClick={() =>
+                        setCustomerModal({
+                          isOpen: true,
+                          sub: selectedSubForInspection,
+                          type: 'cancel',
+                        })
+                      }
+                    >
+                      Request Cancellation
+                    </Button>
+                  </>
+                )}
               </div>
               <Button
                 variant="primary"
@@ -1002,6 +1145,20 @@ export const SubscriptionsPage: React.FC = () => {
         subscriptionId={viewingSubId}
         onClose={() => setViewingSubId(null)}
       />
+
+      {/* Customer Action Modal (Pause / Cancel / Renew) */}
+      {customerModal.isOpen && customerModal.sub && (
+        <CustomerActionModal
+          subscription={customerModal.sub}
+          actionType={customerModal.type}
+          currentUser={user!}
+          isOpen={customerModal.isOpen}
+          onClose={() => setCustomerModal((prev) => ({ ...prev, isOpen: false }))}
+          onSuccess={() => {
+            // refresh
+          }}
+        />
+      )}
     </div>
   );
 };

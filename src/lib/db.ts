@@ -11,6 +11,8 @@ import {
   Product,
   QuotationTemplate,
   Subscription,
+  SubscriptionRequest,
+  SubscriptionRequestType,
   SystemSettings,
   User,
 } from '../types';
@@ -31,6 +33,7 @@ const STORAGE_KEYS = {
   BILLING_RUNS: 'brightloop_billing_runs_v1',
   SETTINGS: 'brightloop_settings_v1',
   SESSION: 'brightloop_auth_session_v1',
+  REQUESTS: 'brightloop_requests_v1',
 };
 
 // Simple event emitter for reactive updates in React components
@@ -166,6 +169,7 @@ const discountStore = new MemoryIndexedStore<Discount>(STORAGE_KEYS.DISCOUNTS);
 const auditLogStore = new MemoryIndexedStore<AuditLog>(STORAGE_KEYS.AUDIT_LOGS);
 const mockEmailStore = new MemoryIndexedStore<EmailMessage>(STORAGE_KEYS.MOCK_EMAILS);
 const billingRunStore = new MemoryIndexedStore<BillingRunLog>(STORAGE_KEYS.BILLING_RUNS);
+const requestStore = new MemoryIndexedStore<SubscriptionRequest>(STORAGE_KEYS.REQUESTS);
 
 // Settings store
 const defaultSettings: SystemSettings = {
@@ -177,6 +181,7 @@ const defaultSettings: SystemSettings = {
   companyPhone: '+91 (080) 4123-8900',
   companyEmail: 'billing@brightflow.io',
   companyWebsite: 'https://brightflow.io',
+  enableAiAssistant: true,
 };
 
 export const settingsRepo = {
@@ -711,3 +716,119 @@ export const billingRunLogsRepo = {
     return item;
   },
 };
+
+export const requestsRepo = {
+  getAll(currentUser: User | null): SubscriptionRequest[] {
+    if (!currentUser) return [];
+    const all = requestStore.getAll();
+    if (currentUser.role === 'customer') {
+      return all.filter((r) => r.customerId === currentUser.customerId);
+    }
+    return all;
+  },
+  getById(id: string, currentUser: User | null): SubscriptionRequest | undefined {
+    const req = requestStore.getById(id);
+    if (!req) return undefined;
+    assertCustomerAccess(currentUser, req.customerId);
+    return req;
+  },
+  create(
+    data: { subscriptionId: string; type: SubscriptionRequestType; reason?: string },
+    currentUser: User | null
+  ): SubscriptionRequest {
+    if (!currentUser) throw new Error('Authentication required');
+    const sub = subscriptionStore.getById(data.subscriptionId);
+    if (!sub) throw new Error('Subscription not found');
+    assertCustomerAccess(currentUser, sub.customerId);
+
+    const customer = customerStore.getById(sub.customerId);
+    const newReq: SubscriptionRequest = {
+      id: 'REQ-' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+      subscriptionId: sub.id,
+      subscriptionNumber: sub.subscriptionNumber,
+      customerId: sub.customerId,
+      customerName: customer?.name || 'Customer',
+      type: data.type,
+      reason: data.reason,
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+    };
+    requestStore.insert(newReq);
+
+    logAudit(
+      currentUser,
+      'subscription',
+      sub.id,
+      `Request Submitted: ${data.type.toUpperCase()}`,
+      `Customer requested ${data.type} for subscription ${sub.subscriptionNumber}: ${data.reason || 'No note provided'}`
+    );
+
+    mockEmailsRepo.send({
+      toEmail: 'billing-ops@brightflow.io',
+      toName: 'Operations Team',
+      subject: `New Customer Request: ${data.type.toUpperCase()} for ${sub.subscriptionNumber}`,
+      type: 'subscription_request',
+      content: `Customer ${customer?.name || 'Customer'} has requested a ${data.type} action for ${sub.subscriptionNumber}.\nReason: ${data.reason || 'None provided'}\n\nPlease review in the Subscriptions -> Requests dashboard.`,
+    });
+
+    return newReq;
+  },
+  resolve(
+    id: string,
+    action: 'Approved' | 'Rejected',
+    adminNote: string,
+    currentUser: User | null
+  ): SubscriptionRequest {
+    if (!currentUser || currentUser.role === 'customer') {
+      throw new ForbiddenError('Only Staff or Administrators can resolve subscription requests.');
+    }
+    const req = requestStore.getById(id);
+    if (!req) throw new Error('Request not found');
+    if (req.status !== 'Pending') {
+      throw new Error(`Request has already been ${req.status.toLowerCase()}.`);
+    }
+
+    const sub = subscriptionStore.getById(req.subscriptionId);
+    const resolvedAt = new Date().toISOString();
+
+    if (action === 'Approved' && sub) {
+      if (req.type === 'pause') {
+        subscriptionStore.update(sub.id, { pausedAt: resolvedAt });
+      } else if (req.type === 'cancel') {
+        subscriptionStore.update(sub.id, { status: 'Closed', closedAt: resolvedAt });
+      } else if (req.type === 'renew') {
+        const currentExp = new Date(sub.expiryDate || new Date().toISOString());
+        currentExp.setFullYear(currentExp.getFullYear() + 1);
+        subscriptionStore.update(sub.id, { expiryDate: currentExp.toISOString().split('T')[0] });
+      }
+    }
+
+    const updated = requestStore.update(id, {
+      status: action,
+      adminNote,
+      resolvedAt,
+    })!;
+
+    logAudit(
+      currentUser,
+      'subscription',
+      req.subscriptionId,
+      `Request ${action}: ${req.type.toUpperCase()}`,
+      `Staff ${currentUser.name} ${action.toLowerCase()} ${req.type} request. Note: ${adminNote || 'None'}`
+    );
+
+    const customer = customerStore.getById(req.customerId);
+    if (customer) {
+      mockEmailsRepo.send({
+        toEmail: customer.email,
+        toName: customer.name,
+        subject: `Subscription Request Update: ${req.type.toUpperCase()} ${action}`,
+        type: 'subscription_request_resolved',
+        content: `Dear ${customer.name},\n\nYour request to ${req.type} subscription ${req.subscriptionNumber} has been ${action}.\nAdmin Note: ${adminNote || 'Processed by operations team.'}\n\nThank you,\nBrightFlow Team`,
+      });
+    }
+
+    return updated;
+  },
+};
+

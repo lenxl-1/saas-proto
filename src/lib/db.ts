@@ -265,6 +265,23 @@ export const usersRepo = {
     }
     return updated;
   },
+  upsert(user: User): User {
+    const cleanEmail = user.email.trim().toLowerCase();
+    const existing = userStore.getAll().find((u) => u.email.toLowerCase() === cleanEmail) || userStore.getById(user.id);
+    if (existing) {
+      const updated = userStore.update(existing.id, user);
+      return updated || user;
+    } else {
+      userStore.insert(user);
+      return user;
+    }
+  },
+  rawSetAll(users: User[]): void {
+    userStore.setAll(users);
+  },
+  invalidate(): void {
+    userStore.invalidate();
+  },
 };
 
 export const customersRepo = {
@@ -292,6 +309,19 @@ export const customersRepo = {
       logAudit(currentUser, 'user', id, 'Customer Updated', `Customer record ${updated.name} updated`);
     }
     return updated;
+  },
+  upsert(customer: Customer): Customer {
+    const existing = customerStore.getById(customer.id);
+    if (existing) {
+      const updated = customerStore.update(customer.id, customer);
+      return updated || customer;
+    } else {
+      customerStore.insert(customer);
+      return customer;
+    }
+  },
+  getRawAll(): Customer[] {
+    return customerStore.getAll();
   },
 };
 

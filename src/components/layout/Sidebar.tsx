@@ -8,6 +8,7 @@ import {
   Inbox,
   Layers,
   LayoutDashboard,
+  LogOut,
   Package,
   Percent,
   Repeat,
@@ -42,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen = false,
   onCloseMobile,
 }) => {
-  const { user, switchDemoUser } = useAuth();
+  const { user, logout } = useAuth();
   const role = user?.role || 'customer';
 
   // Navigation schema configured for roles
@@ -213,9 +214,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ))}
       </div>
 
-      {/* Bottom User Profile & Demo Switcher */}
+      {/* Bottom Authenticated User Identity */}
       <div className="p-3 border-t border-[#E7E7E9] dark:border-white/[0.08] bg-neutral-50/50 dark:bg-neutral-900/30">
-        <div className="flex items-center gap-2.5 px-1 py-1 mb-2">
+        <div className="flex items-center gap-2.5 px-1 py-1">
           <div className="w-8 h-8 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[#171717] dark:text-[#F5F5F5] text-xs font-semibold flex items-center justify-center shrink-0">
             {user?.name?.[0] || 'U'}
           </div>
@@ -223,43 +224,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="text-xs font-semibold text-[#171717] dark:text-[#F5F5F5] block truncate leading-tight">
               {user?.name}
             </span>
-            <span className="text-[10px] text-[#A3A3A3] dark:text-[#71717A] capitalize block truncate mt-0.5">
-              {user?.role} Workspace
-            </span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span
+                className={`text-[9px] font-bold tracking-wider uppercase font-mono px-1.5 py-0.2 rounded ${
+                  user?.role === 'admin'
+                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                    : user?.role === 'staff'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                }`}
+              >
+                {user?.role}
+              </span>
+              <span className="text-[10px] text-[#A3A3A3] dark:text-[#71717A] truncate">
+                {user?.email}
+              </span>
+            </div>
           </div>
-        </div>
-
-        {/* Quick Role Switcher for instant testing */}
-        <div className="flex items-center gap-1 bg-neutral-150 dark:bg-neutral-800 p-0.5 rounded-lg text-[10px]">
           <button
-            onClick={() => switchDemoUser('admin')}
-            className={`flex-1 py-1 rounded font-medium transition-colors ${
-              user?.role === 'admin'
-                ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#F5F5F5] font-semibold shadow-2xs'
-                : 'text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717]'
-            }`}
+            onClick={logout}
+            title="Log Out of BrightFlow"
+            aria-label="Log Out"
+            className="p-1.5 text-[#737373] hover:text-rose-600 dark:text-[#A3A3A3] dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0"
           >
-            Admin
-          </button>
-          <button
-            onClick={() => switchDemoUser('staff')}
-            className={`flex-1 py-1 rounded font-medium transition-colors ${
-              user?.role === 'staff'
-                ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#F5F5F5] font-semibold shadow-2xs'
-                : 'text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717]'
-            }`}
-          >
-            Staff
-          </button>
-          <button
-            onClick={() => switchDemoUser('customer')}
-            className={`flex-1 py-1 rounded font-medium transition-colors ${
-              user?.role === 'customer'
-                ? 'bg-white dark:bg-[#111111] text-[#171717] dark:text-[#F5F5F5] font-semibold shadow-2xs'
-                : 'text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717]'
-            }`}
-          >
-            Customer
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

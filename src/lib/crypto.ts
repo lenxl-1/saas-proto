@@ -10,16 +10,16 @@ export interface PasswordValidationResult {
 }
 
 export function validatePassword(password: string): PasswordValidationResult {
-  const minLength = password.length >= 9;
+  const minLength = password.length >= 8;
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasDigit = /[0-9]/.test(password);
   const hasSpecial = /[^A-Za-z0-9]/.test(password);
 
-  const isValid = minLength && hasUpper && hasLower && hasDigit && hasSpecial;
+  const isValid = minLength && hasUpper && hasLower && (hasDigit || hasSpecial) && hasSpecial;
 
   return {
-    isValid,
+    isValid: minLength && hasUpper && hasLower && hasSpecial,
     criteria: {
       minLength,
       hasUpper,

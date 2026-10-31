@@ -290,18 +290,38 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* User Profile Mini Block */}
-          <div className="flex items-center gap-2 pl-2 border-l border-[#E5E5E5] dark:border-[#262626]">
-            <div className="w-7 h-7 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[#171717] dark:text-[#F5F5F5] text-xs font-semibold flex items-center justify-center">
-              {user?.name?.[0] || 'U'}
+          {/* Authenticated User Identity & Role Badge */}
+          <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-[#E5E5E5] dark:border-[#262626]">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[#171717] dark:text-[#F5F5F5] text-xs font-semibold flex items-center justify-center shrink-0">
+                {user?.name?.[0] || 'U'}
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-xs font-medium text-[#171717] dark:text-[#F5F5F5] leading-tight truncate max-w-[120px]">
+                  {user?.name}
+                </span>
+                <span
+                  className={`text-[9px] font-bold tracking-wider uppercase font-mono ${
+                    user?.role === 'admin'
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : user?.role === 'staff'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-violet-600 dark:text-violet-400'
+                  }`}
+                >
+                  {user?.role}
+                </span>
+              </div>
             </div>
+
             <button
               onClick={logout}
-              aria-label="Sign out"
-              title="Sign Out"
-              className="p-1 text-[#A3A3A3] hover:text-red-500 rounded transition-colors"
+              aria-label="Log Out"
+              title="Sign Out of BrightFlow"
+              className="flex items-center gap-1.5 px-2 py-1 text-xs text-[#737373] hover:text-rose-600 dark:text-[#A3A3A3] dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors font-medium"
             >
               <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Log out</span>
             </button>
           </div>
         </div>

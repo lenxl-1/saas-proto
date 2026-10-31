@@ -23,7 +23,7 @@ export const Forbidden403: React.FC<Forbidden403Props> = ({
         403 Forbidden
       </span>
       <h2 className="mt-1 text-xl font-semibold text-[#171717] dark:text-[#F5F5F5] tracking-tight">
-        Access Restricted
+        403 - Access Forbidden
       </h2>
       <p className="mt-2 text-xs text-[#737373] dark:text-[#A3A3A3] max-w-sm leading-relaxed">
         {reason}

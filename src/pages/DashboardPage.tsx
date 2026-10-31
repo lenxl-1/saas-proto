@@ -123,6 +123,43 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
     };
   }, [invoices, subscriptions, plans, customers, effectiveToday]);
 
+  // Customer-specific personal metrics (strictly isolated from business-wide numbers)
+  const customerMetrics = useMemo(() => {
+    const activeSubs = subscriptions.filter((s) => s.status === 'Active');
+    const totalPaid = invoices
+      .filter((i) => i.status === 'Paid')
+      .reduce((sum, i) => sum + i.grandTotal, 0);
+    const balanceDue = invoices
+      .filter((i) => i.status === 'Confirmed')
+      .reduce((sum, i) => sum + i.balanceDue, 0);
+
+    let monthlySpend = 0;
+    for (const sub of activeSubs) {
+      const plan = plans.find((p) => p.id === sub.planId);
+      if (plan) {
+        monthlySpend += normalizeToMRR(sub.grandTotal, plan.billingFrequency);
+      } else {
+        monthlySpend += sub.grandTotal;
+      }
+    }
+
+    const nextRenewal = activeSubs
+      .map((s) => s.nextBillingDate)
+      .filter(Boolean)
+      .sort()[0];
+
+    const paidCount = invoices.filter((i) => i.status === 'Paid').length;
+
+    return {
+      activeSubsCount: activeSubs.length,
+      monthlySpend,
+      totalPaid,
+      balanceDue,
+      nextRenewal: nextRenewal ? formatDate(nextRenewal) : 'None',
+      paidCount,
+    };
+  }, [subscriptions, invoices, plans]);
+
   // Subscription Health Counts
   const healthCounts = useMemo(() => {
     const active = subscriptions.filter((s) => s.status === 'Active').length || 1248;
@@ -288,57 +325,130 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
       )}
 
       {/* 3. Primary KPI Section (Sections 7 & 8) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        <MetricCard
-          label="MRR"
-          value={formatINRCompact(metrics.mrr)}
-          trend="up"
-          trendValue="+8.7%"
-          description="Monthly recurring revenue"
-          onClick={() => onNavigate('reports')}
-        />
-        <MetricCard
-          label="ARR"
-          value={formatINRCompact(metrics.arr)}
-          trend="up"
-          trendValue="+11.2%"
-          description="Annualized run rate"
-          onClick={() => onNavigate('reports')}
-        />
-        <MetricCard
-          label="Active subscriptions"
-          value={metrics.activeSubsCount.toLocaleString('en-IN')}
-          trend="up"
-          trendValue="+12.4%"
-          description="Paying accounts"
-          onClick={() => onNavigate('subscriptions')}
-        />
-        <MetricCard
-          label="Active customers"
-          value={metrics.activeSubsCount > 0 ? (metrics.activeSubsCount * 0.75).toFixed(0) : '936'}
-          trend="up"
-          trendValue="+5.2%"
-          description="Unique organizations"
-          onClick={() => onNavigate('customers')}
-        />
-        <MetricCard
-          label="Outstanding invoices"
-          value={formatINRCompact(metrics.outstandingAmount)}
-          description="Pending collection"
-          onClick={() => onNavigate('invoices')}
-        />
-        <MetricCard
-          label="Overdue"
-          value={metrics.overdueCount}
-          trend="down"
-          trendValue="Action req."
-          description="Across all clients"
-          onClick={() => onNavigate('invoices')}
-        />
-      </div>
+      {isCustomerRole ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <MetricCard
+            label="Active Subscriptions"
+            value={customerMetrics.activeSubsCount}
+            trend={customerMetrics.activeSubsCount > 0 ? 'up' : 'neutral'}
+            trendValue={customerMetrics.activeSubsCount > 0 ? 'Active' : 'No plans'}
+            description="Active billing licenses"
+            onClick={() => onNavigate('subscriptions')}
+          />
+          <MetricCard
+            label="Monthly Spend"
+            value={formatINRCompact(customerMetrics.monthlySpend)}
+            description="Normalized recurring commitment"
+            onClick={() => onNavigate('subscriptions')}
+          />
+          <MetricCard
+            label="Total Paid"
+            value={formatINRCompact(customerMetrics.totalPaid)}
+            description="Lifetime payments settled"
+            onClick={() => onNavigate('payments')}
+          />
+          <MetricCard
+            label="Balance Due"
+            value={formatINRCompact(customerMetrics.balanceDue)}
+            description="Outstanding invoices"
+            onClick={() => onNavigate('invoices')}
+          />
+          <MetricCard
+            label="Next Renewal"
+            value={customerMetrics.nextRenewal}
+            description="Upcoming auto-renewal"
+            onClick={() => onNavigate('subscriptions')}
+          />
+          <MetricCard
+            label="Invoices Paid"
+            value={customerMetrics.paidCount}
+            description="Tax invoices & receipts"
+            onClick={() => onNavigate('invoices')}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <MetricCard
+            label="MRR"
+            value={formatINRCompact(metrics.mrr)}
+            trend="up"
+            trendValue="+8.7%"
+            description="Monthly recurring revenue"
+            onClick={() => onNavigate('reports')}
+          />
+          <MetricCard
+            label="ARR"
+            value={formatINRCompact(metrics.arr)}
+            trend="up"
+            trendValue="+11.2%"
+            description="Annualized run rate"
+            onClick={() => onNavigate('reports')}
+          />
+          <MetricCard
+            label="Active subscriptions"
+            value={metrics.activeSubsCount.toLocaleString('en-IN')}
+            trend="up"
+            trendValue="+12.4%"
+            description="Paying accounts"
+            onClick={() => onNavigate('subscriptions')}
+          />
+          <MetricCard
+            label="Active customers"
+            value={metrics.activeSubsCount > 0 ? (metrics.activeSubsCount * 0.75).toFixed(0) : '936'}
+            trend="up"
+            trendValue="+5.2%"
+            description="Unique organizations"
+            onClick={() => onNavigate('customers')}
+          />
+          <MetricCard
+            label="Outstanding invoices"
+            value={formatINRCompact(metrics.outstandingAmount)}
+            description="Pending collection"
+            onClick={() => onNavigate('invoices')}
+          />
+          <MetricCard
+            label="Overdue"
+            value={metrics.overdueCount}
+            trend="down"
+            trendValue="Action req."
+            description="Across all clients"
+            onClick={() => onNavigate('invoices')}
+          />
+        </div>
+      )}
 
       {/* 4. Quick Actions Bar (Section 9) */}
-      {!isCustomerRole && (
+      {isCustomerRole ? (
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="text-[11px] font-medium text-[#71717A] dark:text-[#A1A1AA] mr-1">
+            Quick actions:
+          </span>
+          <Button
+            variant="secondary"
+            size="xs"
+            icon={<Repeat className="w-3 h-3 text-[#71717A]" />}
+            onClick={() => onNavigate('plans')}
+          >
+            Explore Plans
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            icon={<FileText className="w-3 h-3 text-[#71717A]" />}
+            onClick={() => onNavigate('invoices')}
+          >
+            My Invoices
+          </Button>
+          <Button
+            variant="secondary"
+            size="xs"
+            icon={<CreditCard className="w-3 h-3 text-[#71717A]" />}
+            onClick={() => onNavigate('payments')}
+          >
+            Payment History
+          </Button>
+        </div>
+      ) : (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
           <span className="text-[11px] font-medium text-[#71717A] dark:text-[#A1A1AA] mr-1">
             Quick actions:

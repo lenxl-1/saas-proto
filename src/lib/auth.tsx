@@ -2,9 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Customer, User } from '../types';
 import { generateSalt, hashPassword, validatePassword, verifyPassword } from './crypto';
 import { customersRepo, mockEmailsRepo, usersRepo } from './db';
+import { ensureDemoUsers } from './seed';
 
-const SESSION_KEY = 'brightloop_auth_session_v1';
-const REMEMBER_KEY = 'brightloop_auth_remember_v1';
+const SESSION_KEY = 'brightflow_auth_session_v2';
+const REMEMBER_KEY = 'brightflow_auth_remember_v2';
 
 interface AuthContextType {
   user: User | null;
@@ -38,27 +39,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Restore session
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SESSION_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const freshUser = usersRepo.getById(parsed.id);
-        if (freshUser && freshUser.active) {
-          setUser(freshUser);
-          if (freshUser.customerId) {
-            const cust = customersRepo.getById(freshUser.customerId, freshUser);
-            setCustomer(cust || null);
+    async function restoreSession() {
+      try {
+        await ensureDemoUsers();
+        // Check sessionStorage first (temporary session without rememberMe), then localStorage (persistent)
+        const stored = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const freshUser = usersRepo.getById(parsed.id);
+          if (freshUser && freshUser.active) {
+            setUser(freshUser);
+            if (freshUser.customerId) {
+              const cust = customersRepo.getById(freshUser.customerId, freshUser);
+              setCustomer(cust || null);
+            }
+          } else {
+            sessionStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(SESSION_KEY);
           }
-        } else {
-          localStorage.removeItem(SESSION_KEY);
         }
+      } catch (e) {
+        console.error('Session load error', e);
+        sessionStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(SESSION_KEY);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.error('Session load error', e);
-      localStorage.removeItem(SESSION_KEY);
-    } finally {
-      setIsLoading(false);
     }
+    restoreSession();
   }, []);
 
   const login = async (
@@ -67,19 +75,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     remember = true
   ): Promise<{ success: boolean; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
-    const existing = usersRepo.getByEmail(cleanEmail);
+    let existing = usersRepo.getByEmail(cleanEmail);
+
+    // If demo account lookup fails, ensure demo users exist and retry
+    if (
+      !existing &&
+      (cleanEmail === 'admin@brightflow.com' ||
+        cleanEmail === 'staff@brightflow.com' ||
+        cleanEmail === 'customer@brightflow.com' ||
+        cleanEmail === 'admin@brightloop.com' ||
+        cleanEmail === 'staff@brightloop.com' ||
+        cleanEmail === 'customer@brightloop.com')
+    ) {
+      await ensureDemoUsers();
+      existing = usersRepo.getByEmail(cleanEmail);
+    }
 
     if (!existing) {
-      return { success: false, error: 'No account found with this email address.' };
+      return { success: false, error: 'Incorrect username or password' };
     }
 
     if (!existing.active) {
       return { success: false, error: 'This account has been deactivated. Please contact support.' };
     }
 
-    const isValid = await verifyPassword(password, existing.salt, existing.passwordHash);
+    let isValid = await verifyPassword(password, existing.salt, existing.passwordHash);
     if (!isValid) {
-      return { success: false, error: 'Invalid password. Please try again.' };
+      // In case password hash in existing user was corrupted by an older version, retry if it's a demo account
+      if (
+        (cleanEmail === 'admin@brightflow.com' && password === 'Admin@12345') ||
+        (cleanEmail === 'staff@brightflow.com' && password === 'Staff@12345') ||
+        (cleanEmail === 'customer@brightflow.com' && password === 'Customer@12345')
+      ) {
+        await ensureDemoUsers();
+        const refreshed = usersRepo.getByEmail(cleanEmail);
+        if (refreshed && (await verifyPassword(password, refreshed.salt, refreshed.passwordHash))) {
+          existing = refreshed;
+          isValid = true;
+        }
+      }
+    }
+
+    if (!isValid) {
+      return { success: false, error: 'Incorrect username or password' };
     }
 
     setUser(existing);
@@ -90,10 +128,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCustomer(null);
     }
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify({ id: existing.id }));
     if (remember) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ id: existing.id }));
       localStorage.setItem(REMEMBER_KEY, existing.email);
+      sessionStorage.removeItem(SESSION_KEY);
     } else {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: existing.id }));
+      localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(REMEMBER_KEY);
     }
 
@@ -117,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check unique email
     const existing = usersRepo.getByEmail(cleanEmail);
     if (existing) {
-      return { success: false, error: 'An account with this email already exists. Please login instead.' };
+      return { success: false, error: 'An account with this email already exists.' };
     }
 
     // Validate password rules
@@ -125,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!val.isValid) {
       return {
         success: false,
-        error: 'Password does not meet security requirements (must be 9+ characters, with uppercase, lowercase, digit, and symbol).',
+        error: 'Password does not meet security requirements (at least 8 characters, with uppercase, lowercase, and special character).',
       };
     }
 
@@ -182,6 +223,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setCustomer(null);
@@ -261,12 +303,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchDemoUser = async (role: 'admin' | 'staff' | 'customer') => {
     const map = {
-      admin: 'admin@brightloop.com',
-      staff: 'staff@brightloop.com',
-      customer: 'customer@brightloop.com',
+      admin: ['admin@brightflow.com', 'admin@brightloop.com'],
+      staff: ['staff@brightflow.com', 'staff@brightloop.com'],
+      customer: ['customer@brightflow.com', 'customer@brightloop.com'],
     };
-    const targetEmail = map[role];
-    const targetUser = usersRepo.getByEmail(targetEmail);
+    const targetEmails = map[role];
+    let targetUser: User | undefined;
+    for (const em of targetEmails) {
+      targetUser = usersRepo.getByEmail(em);
+      if (targetUser) break;
+    }
     if (targetUser) {
       setUser(targetUser);
       if (targetUser.customerId) {

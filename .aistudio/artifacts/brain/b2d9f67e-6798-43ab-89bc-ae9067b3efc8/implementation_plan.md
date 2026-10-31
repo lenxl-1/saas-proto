@@ -161,3 +161,29 @@ Complete UI/UX transformation of the BrightFlow Subscription Management System i
 ### Step 8: Build Verification & Polish
 - Run `compile_applet` to ensure zero compilation or TypeScript errors.
 - Test responsive breakpoints (mobile, tablet, desktop) and theme toggling.
+
+---
+
+## 6. Authentication & Role-Based Access Upgrade (Completed)
+
+1. **Pre-Seeded Demo Accounts**:
+   - `admin@brightflow.com` / `Admin@12345` (Role: `admin`)
+   - `staff@brightflow.com` / `Staff@12345` (Role: `staff`)
+   - `customer@brightflow.com` / `Customer@12345` (Role: `customer`)
+2. **Proper Authentication Flow (No Bypass)**:
+   - Removed unauthenticated role switchers from Navbar and Sidebar.
+   - Login page has 3 Quick Login demo buttons below the form that populate inputs only without auto-submitting. Presenter clicks "Sign In".
+   - Show/hide password visibility toggle with eye icons.
+   - Clear error notifications (`Invalid email or password.`, `This account has been deactivated. Please contact support.`).
+3. **Customer Registration**:
+   - Fixed to `CUSTOMER` role.
+   - Live password security checklist (>= 8 chars, 1 uppercase, 1 lowercase, 1 special character).
+   - Duplicate email validation (`An account with this email already exists.`).
+4. **Role Isolation & Data Scoping**:
+   - `ADMIN`: Global revenue analytics, user management, benchmarks.
+   - `STAFF`: Operational billing ledgers; blocked from User Management with `403 - Access Forbidden`.
+   - `CUSTOMER`: Dedicated personal portal with personal spend metrics (Active Subscriptions, Monthly Spend, Total Paid, Balance Due, Next Renewal, Invoices Paid), completely isolated from enterprise MRR/ARR/active accounts metrics; blocked from all staff/admin routes with `403 - Access Forbidden`.
+5. **Navbar & Layout Identity**:
+   - Display current logged in user name and role badge (`ADMIN`, `STAFF`, `CUSTOMER`).
+   - Clean, direct `Log Out` action that terminates the session and redirects to Login.
+

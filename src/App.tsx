@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
-import { isDatabaseSeeded, seedDemoData } from './lib/seed';
+import { ensureDemoUsers, isDatabaseSeeded, seedDemoData } from './lib/seed';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { Navbar } from './components/layout/Navbar';
@@ -38,13 +38,15 @@ function MainApp() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Initialize and seed demo data on first load
+  // Initialize and seed demo data on first load safely without deleting existing business data
   useEffect(() => {
     async function init() {
       try {
         const seeded = await isDatabaseSeeded();
         if (!seeded) {
           await seedDemoData(false);
+        } else {
+          await ensureDemoUsers();
         }
       } catch (err) {
         console.error('Seeding error', err);
@@ -117,11 +119,33 @@ function MainApp() {
 
   // Role Guard validation
   const renderCurrentPage = () => {
-    // Admin only sections
+    // Customer isolation guard
+    if (user.role === 'customer') {
+      const allowedCustomerPages = [
+        'dashboard',
+        'subscriptions',
+        'invoices',
+        'payments',
+        'plans',
+        'ai-insights',
+        'mock-inbox',
+        'demo-guide',
+      ];
+      if (!allowedCustomerPages.includes(currentPage)) {
+        return (
+          <Forbidden403
+            reason="Customer portal accounts cannot access internal administrative operations or staff databases."
+            onGoBack={() => setCurrentPage('dashboard')}
+          />
+        );
+      }
+    }
+
+    // Admin-only sections guard (Staff and Customer blocked)
     if ((currentPage === 'users' || currentPage === 'performance') && user.role !== 'admin') {
       return (
         <Forbidden403
-          reason="This administrative section is restricted to Administrator roles."
+          reason="This administrative section is strictly restricted to Administrator roles."
           onGoBack={() => setCurrentPage('dashboard')}
         />
       );

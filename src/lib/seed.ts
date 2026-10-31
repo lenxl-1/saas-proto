@@ -29,13 +29,90 @@ import {
 import { getDueDateFromTerms } from './formatters';
 import { calculateOrderLine, calculateTotals, round2 } from './pricing';
 
-const SEED_VERSION_KEY = 'brightloop_seed_version_v1.2';
+const SEED_VERSION_KEY = 'brightflow_seed_version_v2.0_auth';
+
+export const DEMO_SALT = 'brightflow_salt_2026';
 
 export async function isDatabaseSeeded(): Promise<boolean> {
   const seeded = localStorage.getItem(SEED_VERSION_KEY);
   if (!seeded) return false;
   const users = usersRepo.getAll();
-  return users.length > 0;
+  const hasAdmin = users.some((u) => u.email.toLowerCase() === 'admin@brightflow.com');
+  const hasStaff = users.some((u) => u.email.toLowerCase() === 'staff@brightflow.com');
+  const hasCust = users.some((u) => u.email.toLowerCase() === 'customer@brightflow.com');
+  return users.length > 0 && hasAdmin && hasStaff && hasCust;
+}
+
+/**
+ * Idempotently verifies and repairs the 3 demo users in the local repository
+ * without deleting real registered users or clearing existing business data.
+ */
+export async function ensureDemoUsers(): Promise<void> {
+  const adminHash = await hashPassword('Admin@12345', DEMO_SALT);
+  const staffHash = await hashPassword('Staff@12345', DEMO_SALT);
+  const customerHash = await hashPassword('Customer@12345', DEMO_SALT);
+
+  // 1. Ensure CUST-001 Customer record exists for the customer demo account
+  const rawCustomers = customersRepo.getRawAll();
+  const existingCust = rawCustomers.find(
+    (c) => c.id === 'CUST-001' || c.email.toLowerCase() === 'customer@brightflow.com'
+  );
+  if (!existingCust) {
+    customersRepo.upsert({
+      id: 'CUST-001',
+      name: 'Aarav Sharma',
+      email: 'customer@brightflow.com',
+      phone: '+91 98765 43210',
+      company: 'Sharma Infotech Pvt Ltd',
+      address: '14, 100 Feet Road, HAL 2nd Stage, Indiranagar',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '560001',
+      active: true,
+      createdAt: '2025-11-01T10:00:00.000Z',
+    });
+  } else if (existingCust.email.toLowerCase() !== 'customer@brightflow.com') {
+    customersRepo.update(existingCust.id, { email: 'customer@brightflow.com' }, null);
+  }
+
+  // 2. Define the three required demo accounts
+  const demoAccounts: User[] = [
+    {
+      id: 'USR-ADMIN-FLOW',
+      name: 'Rajesh Verma (Admin)',
+      email: 'admin@brightflow.com',
+      role: 'admin',
+      passwordHash: adminHash,
+      salt: DEMO_SALT,
+      active: true,
+      createdAt: '2025-10-01T09:00:00.000Z',
+    },
+    {
+      id: 'USR-STAFF-FLOW',
+      name: 'Pooja Nair (Staff)',
+      email: 'staff@brightflow.com',
+      role: 'staff',
+      passwordHash: staffHash,
+      salt: DEMO_SALT,
+      active: true,
+      createdAt: '2025-10-15T09:00:00.000Z',
+    },
+    {
+      id: 'USR-CUST-FLOW',
+      name: 'Aarav Sharma',
+      email: 'customer@brightflow.com',
+      role: 'customer',
+      passwordHash: customerHash,
+      salt: DEMO_SALT,
+      active: true,
+      customerId: existingCust ? existingCust.id : 'CUST-001',
+      createdAt: '2025-11-01T10:00:00.000Z',
+    },
+  ];
+
+  for (const acc of demoAccounts) {
+    usersRepo.upsert(acc);
+  }
 }
 
 export async function seedDemoData(force = false): Promise<void> {
@@ -47,14 +124,50 @@ export async function seedDemoData(force = false): Promise<void> {
   localStorage.clear();
 
   // 1. Create Core Users
-  const salt = 'brightloop_salt_2026';
+  const salt = 'brightflow_salt_2026';
   const adminHash = await hashPassword('Admin@12345', salt);
   const staffHash = await hashPassword('Staff@12345', salt);
   const customerHash = await hashPassword('Customer@12345', salt);
 
+  // BrightFlow Primary Demo Accounts
+  const demoAdminBrightflow: User = {
+    id: 'USR-ADMIN-FLOW',
+    name: 'Rajesh Verma (Admin)',
+    email: 'admin@brightflow.com',
+    role: 'admin',
+    passwordHash: adminHash,
+    salt,
+    active: true,
+    createdAt: '2025-10-01T09:00:00.000Z',
+  };
+
+  const demoStaffBrightflow: User = {
+    id: 'USR-STAFF-FLOW',
+    name: 'Pooja Nair (Staff)',
+    email: 'staff@brightflow.com',
+    role: 'staff',
+    passwordHash: staffHash,
+    salt,
+    active: true,
+    createdAt: '2025-10-15T09:00:00.000Z',
+  };
+
+  const demoCustomerBrightflow: User = {
+    id: 'USR-CUST-FLOW',
+    name: 'Aarav Sharma',
+    email: 'customer@brightflow.com',
+    role: 'customer',
+    passwordHash: customerHash,
+    salt,
+    active: true,
+    customerId: 'CUST-001',
+    createdAt: '2025-11-01T10:00:00.000Z',
+  };
+
+  // Backwards compatibility legacy demo users
   const demoCustomerUser: User = {
     id: 'USR-CUST-001',
-    name: 'Aarav Sharma',
+    name: 'Aarav Sharma (Alt)',
     email: 'customer@brightloop.com',
     role: 'customer',
     passwordHash: customerHash,
@@ -66,7 +179,7 @@ export async function seedDemoData(force = false): Promise<void> {
 
   const demoAdminUser: User = {
     id: 'USR-ADMIN-001',
-    name: 'Rajesh Verma (Admin)',
+    name: 'Rajesh Verma (Alt)',
     email: 'admin@brightloop.com',
     role: 'admin',
     passwordHash: adminHash,
@@ -77,7 +190,7 @@ export async function seedDemoData(force = false): Promise<void> {
 
   const demoStaffUser: User = {
     id: 'USR-STAFF-001',
-    name: 'Pooja Nair (Staff)',
+    name: 'Pooja Nair (Alt)',
     email: 'staff@brightloop.com',
     role: 'staff',
     passwordHash: staffHash,
@@ -91,7 +204,7 @@ export async function seedDemoData(force = false): Promise<void> {
   const demoStaffUser2: User = {
     id: 'USR-STAFF-002',
     name: 'Vikram Joshi',
-    email: 'vikram.joshi@brightloop.com',
+    email: 'vikram.joshi@brightflow.com',
     role: 'staff',
     passwordHash: staffHash2,
     salt,
@@ -99,7 +212,15 @@ export async function seedDemoData(force = false): Promise<void> {
     createdAt: '2025-11-01T09:00:00.000Z',
   };
 
-  const allUsers: User[] = [demoAdminUser, demoStaffUser, demoStaffUser2, demoCustomerUser];
+  const allUsers: User[] = [
+    demoAdminBrightflow,
+    demoStaffBrightflow,
+    demoCustomerBrightflow,
+    demoAdminUser,
+    demoStaffUser,
+    demoCustomerUser,
+    demoStaffUser2,
+  ];
 
   // 2. Generate 120 Customers
   const indianFirstNames = [
@@ -132,7 +253,7 @@ export async function seedDemoData(force = false): Promise<void> {
   customers.push({
     id: 'CUST-001',
     name: 'Aarav Sharma',
-    email: 'customer@brightloop.com',
+    email: 'customer@brightflow.com',
     phone: '+91 98765 43210',
     company: 'Sharma Infotech Pvt Ltd',
     address: '14, 100 Feet Road, HAL 2nd Stage, Indiranagar',
@@ -873,11 +994,10 @@ export async function seedDemoData(force = false): Promise<void> {
     }
   }
 
-  // Populate into repositories
-  usersRepo.create(demoAdminUser, null);
-  usersRepo.create(demoStaffUser, demoAdminUser);
-  usersRepo.create(demoStaffUser2, demoAdminUser);
-  usersRepo.create(demoCustomerUser, null);
+  // Populate all users into repository
+  for (const u of allUsers) {
+    usersRepo.upsert(u);
+  }
 
   for (const c of customers) {
     customersRepo.create(c, null);
